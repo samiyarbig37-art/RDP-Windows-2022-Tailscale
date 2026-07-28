@@ -20,16 +20,25 @@ jobs:
       run: |
         sudo tailscaled > /dev/null 2>&1 &
         sleep 5
-        sudo tailscale up
+        sudo tailscale up --authkey $TAILSCALE_AUTHKEY
       env:
         TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         
     - name: Enable Screen Sharing (Mac RDP/VNC)
       run: |
-        # تنظیم رمز عبور جدید برای runner بدون نیاز به Secure Token
-        printf "MacPass123!\nMacPass123!\n" | sudo passwd runner
+        # تغییر رمز عبور runner با ایجاد ترمینال مجازی (PTY)
+        sudo python3 -c 'import pty, os, time
+        pid, fd = pty.fork()
+        if pid == 0:
+            os.execlp("passwd", "passwd", "runner")
+        else:
+            time.sleep(0.5)
+            os.write(fd, b"MacPass123!\n")
+            time.sleep(0.5)
+            os.write(fd, b"MacPass123!\n")
+            time.sleep(0.5)'
         
-        # فعال‌سازی قابلیت Screen Sharing / Remote Desktop در مک
+        # فعال‌سازی قابلیت ریموت دسکتاپ/Screen Sharing مک
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -restart -agent -privs -all
         
     - name: Get Tailscale IP and Access Info
