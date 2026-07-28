@@ -1,0 +1,53 @@
+name: HenMac Tahoe Full
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 9999
+
+    steps:
+    - name: Download Assets
+      run: |
+        # دانلود تصویر پس‌زمینه (فایل‌های bat ویندوزی در مک کاربرد ندارند)
+        curl -L -o wallpaper.png https://github.com/arifkembiri/RDP-Windows-2022-Tailscale/blob/main/wallpaper.png?raw=true
+        
+    - name: Install Tailscale
+      run: |
+        # نصب Tailscale از طریق Homebrew
+        brew install tailscale
+        
+    - name: Start and Authenticate Tailscale
+      run: |
+        # اجرای سرویس Tailscale در پس‌زمینه
+        sudo tailscaled > /dev/null 2>&1 &
+        sleep 5
+        # اتصال به اکانت با استفاده از کلید امنیتی
+        sudo tailscale up --authkey $TAILSCALE_AUTHKEY
+      env:
+        TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+        
+    - name: Enable Screen Sharing (Mac RDP/VNC)
+      run: |
+        # تنظیم رمز عبور برای یوزر پیش‌فرض مک (runner)
+        # برای ریموت زدن به مک باید از این رمز استفاده کنید
+        sudo dscl . -passwd /Users/runner "MacPass123!"
+        
+        # فعال‌سازی قابلیت ریموت دسکتاپ مک (Screen Sharing)
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -restart -agent -privs -all
+        
+    - name: Get Tailscale IP and Access Info
+      run: |
+        tailscale_ip=$(tailscale ip -4)
+        echo "=================================="
+        echo "Tailscale IP: $tailscale_ip"
+        echo "Username: runner"
+        echo "Password: MacPass123!"
+        echo "Protocol: VNC (Use a VNC Viewer or Apple Screen Sharing)"
+        echo "=================================="
+        
+    - name: Successfully made! Keeping the runner alive.
+      run: |
+        # یک لوپ بی‌نهایت برای جلوگیری از بسته شدن سشن (جایگزین loop.bat)
+        while true; do sleep 60; done
