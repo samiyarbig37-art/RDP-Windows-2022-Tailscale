@@ -24,7 +24,7 @@ jobs:
         sudo tailscaled > /dev/null 2>&1 &
         sleep 5
         # اتصال به اکانت با استفاده از کلید امنیتی
-        sudo tailscale up --authkey $TAILSCALE_AUTHKEY
+        sudo tailscale up
       env:
         TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         
