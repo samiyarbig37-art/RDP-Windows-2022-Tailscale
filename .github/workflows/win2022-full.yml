@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: depot-windows-2022
+    runs-on: depot-windows-latest
     timeout-minutes: 9999
 
     steps:
