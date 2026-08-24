@@ -2,10 +2,11 @@ name: Ubuntu 26.04 LXQt + XRDP + Tailscale
 
 on:
   workflow_dispatch:
-
+  
 jobs:
-  ubuntu-lxqt:
+  build:
     runs-on: namespace-profile-samiyarbig234
+    
 
     steps:
       - name: Check Ubuntu version
