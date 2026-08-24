@@ -10,7 +10,7 @@ jobs:
     steps:
 
       # ==========================================
-      # OS INFORMATION
+      # SYSTEM INFORMATION
       # ==========================================
 
       - name: Check system
@@ -19,16 +19,16 @@ jobs:
           cat /etc/os-release
 
           echo
-          echo "===== Init ====="
-          ps -p 1 -o pid,comm,args
-
-          echo
           echo "===== Kernel ====="
           uname -a
 
+          echo
+          echo "===== PID 1 ====="
+          ps -p 1 -o pid,comm,args
+
 
       # ==========================================
-      # UPDATE
+      # UPDATE SYSTEM
       # ==========================================
 
       - name: Update system
@@ -40,10 +40,10 @@ jobs:
 
 
       # ==========================================
-      # INSTALL LXQT + XRDP
+      # INSTALL LXQT + XRDP + DBUS
       # ==========================================
 
-      - name: Install LXQt and XRDP
+      - name: Install LXQt XRDP Xorg and DBus
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             lxqt \
@@ -52,6 +52,9 @@ jobs:
             xorgxrdp \
             dbus-x11 \
             dbus-user-session \
+            dbus \
+            xserver-xorg-core \
+            xserver-xorg-input-all \
             curl \
             ca-certificates \
             gnupg \
@@ -70,7 +73,7 @@ jobs:
         run: |
 
           if [ -z "$RDP_PASSWORD" ]; then
-            echo "::error::RDP_PASSWORD is missing."
+            echo "::error::RDP_PASSWORD GitHub Secret is missing or empty."
             exit 1
           fi
 
@@ -86,25 +89,44 @@ jobs:
 
           sudo usermod -aG sudo,ssl-cert xrdpuser
 
-          echo "RDP user created."
+          echo "RDP user successfully created."
 
 
       # ==========================================
-      # CONFIGURE LXQT
+      # CREATE LXQT SESSION
       # ==========================================
 
-      - name: Configure LXQt
+      - name: Configure LXQt session
         run: |
 
-          sudo -u xrdpuser bash -c \
-            'echo "startlxqt" > /home/xrdpuser/.xsession'
+          sudo mkdir -p \
+            /home/xrdpuser/.config
 
-          sudo chown \
-            xrdpuser:xrdpuser \
+          sudo tee \
+            /home/xrdpuser/.xsession > /dev/null <<'EOF'
+          #!/bin/sh
+
+          export LANG=C.UTF-8
+          export LANGUAGE=C.UTF-8
+          export LC_ALL=C.UTF-8
+
+          export XDG_CURRENT_DESKTOP=LXQt
+          export XDG_SESSION_DESKTOP=LXQt
+
+          export XDG_CONFIG_DIRS=/etc/xdg/xdg-LXQt:/etc/xdg
+          export XDG_DATA_DIRS=/usr/share/lxqt:/usr/local/share:/usr/share
+
+          exec dbus-launch --exit-with-session startlxqt
+          EOF
+
+          sudo chmod +x \
             /home/xrdpuser/.xsession
 
-          sudo chmod 644 \
+          sudo chown xrdpuser:xrdpuser \
             /home/xrdpuser/.xsession
+
+          sudo chown -R xrdpuser:xrdpuser \
+            /home/xrdpuser/.config
 
 
       # ==========================================
@@ -127,16 +149,30 @@ jobs:
           export XDG_CONFIG_DIRS=/etc/xdg/xdg-LXQt:/etc/xdg
           export XDG_DATA_DIRS=/usr/share/lxqt:/usr/local/share:/usr/share
 
-          exec startlxqt
+          exec /home/xrdpuser/.xsession
           EOF
 
           sudo chmod +x /etc/xrdp/startwm.sh
 
+
+      # ==========================================
+      # XRDP RUNTIME DIRECTORY
+      # ==========================================
+
+      - name: Prepare XRDP runtime
+        run: |
+
           sudo mkdir -p /run/xrdp
 
-          sudo chown xrdp:xrdp /run/xrdp
+          sudo chown xrdp:xrdp \
+            /run/xrdp
 
-          sudo chmod 755 /run/xrdp
+          sudo chmod 755 \
+            /run/xrdp
+
+          sudo rm -f \
+            /run/xrdp/xrdp.pid \
+            /run/xrdp/xrdp-sesman.pid
 
 
       # ==========================================
@@ -146,13 +182,12 @@ jobs:
       - name: Start XRDP
         run: |
 
+          echo "Stopping existing XRDP processes..."
+
           sudo pkill xrdp || true
           sudo pkill xrdp-sesman || true
 
           sleep 2
-
-          sudo rm -f /run/xrdp/xrdp.pid
-          sudo rm -f /run/xrdp/xrdp-sesman.pid
 
           echo "Starting xrdp-sesman..."
 
@@ -160,7 +195,7 @@ jobs:
             --nodaemon \
             > /tmp/xrdp-sesman.log 2>&1 &
 
-          sleep 2
+          sleep 3
 
           echo "Starting xrdp..."
 
@@ -171,15 +206,25 @@ jobs:
           sleep 5
 
           echo
-          echo "===== XRDP ====="
+          echo "===== XRDP PROCESSES ====="
 
           ps aux | grep -E \
             'xrdp|xrdp-sesman' | grep -v grep || true
 
           echo
-          echo "===== Port 3389 ====="
+          echo "===== PORT 3389 ====="
 
           sudo ss -lntp | grep ':3389' || true
+
+          echo
+          echo "===== XRDP LOG ====="
+
+          sudo cat /tmp/xrdp.log || true
+
+          echo
+          echo "===== XRDP SESMAN LOG ====="
+
+          sudo cat /tmp/xrdp-sesman.log || true
 
 
       # ==========================================
@@ -194,27 +239,26 @@ jobs:
 
 
       # ==========================================
-      # START TAILSCALE DAEMON WITHOUT SYSTEMD
+      # START TAILSCALE WITHOUT SYSTEMD
       # ==========================================
 
       - name: Start tailscaled
         run: |
 
-          echo "Checking tailscaled..."
-
-          command -v tailscaled || {
+          if ! command -v tailscaled >/dev/null 2>&1; then
             echo "::error::tailscaled was not installed."
             exit 1
-          }
+          fi
 
-          echo "Starting tailscaled manually..."
-
-          sudo mkdir -p /var/lib/tailscale
-          sudo mkdir -p /run/tailscale
+          sudo mkdir -p \
+            /var/lib/tailscale \
+            /run/tailscale
 
           sudo pkill tailscaled || true
 
           sleep 2
+
+          echo "Starting tailscaled..."
 
           sudo tailscaled \
             --state=/var/lib/tailscale/tailscaled.state \
@@ -223,30 +267,34 @@ jobs:
 
           echo "Waiting for tailscaled..."
 
+          TAILSCALE_READY=false
+
           for i in $(seq 1 30); do
 
             if sudo tailscale \
               --socket=/run/tailscale/tailscaled.sock \
               status >/dev/null 2>&1; then
 
-              echo "tailscaled is running."
-
+              TAILSCALE_READY=true
+              echo "tailscaled is ready."
               break
+
             fi
 
             sleep 1
 
           done
 
-          echo
-          echo "===== tailscaled process ====="
+          if [ "$TAILSCALE_READY" != "true" ]; then
+            echo "::error::tailscaled failed to start."
 
-          ps aux | grep tailscaled | grep -v grep || true
+            echo
+            echo "===== tailscaled log ====="
 
-          echo
-          echo "===== tailscaled log ====="
+            sudo cat /tmp/tailscaled.log || true
 
-          sudo cat /tmp/tailscaled.log || true
+            exit 1
+          fi
 
 
       # ==========================================
@@ -260,11 +308,9 @@ jobs:
         run: |
 
           if [ -z "$TS_AUTHKEY" ]; then
-            echo "::error::TS_AUTHKEY is missing."
+            echo "::error::TS_AUTHKEY GitHub Secret is missing or empty."
             exit 1
           fi
-
-          echo "Connecting to Tailscale..."
 
           sudo tailscale \
             --socket=/run/tailscale/tailscaled.sock \
@@ -276,7 +322,7 @@ jobs:
 
 
       # ==========================================
-      # SHOW CONNECTION INFO
+      # SHOW CONNECTION INFORMATION
       # ==========================================
 
       - name: Show connection information
@@ -287,31 +333,32 @@ jobs:
           echo " Ubuntu 26.04"
           echo " LXQt"
           echo " XRDP"
+          echo " Xorg"
           echo " Tailscale"
           echo "=========================================="
 
           echo
-          echo "===== Tailscale IPv4 ====="
+          echo "===== TAILSCALE IPv4 ====="
 
           sudo tailscale \
             --socket=/run/tailscale/tailscaled.sock \
             ip -4
 
           echo
-          echo "===== Tailscale status ====="
+          echo "===== TAILSCALE STATUS ====="
 
           sudo tailscale \
             --socket=/run/tailscale/tailscaled.sock \
             status
 
           echo
-          echo "===== XRDP ====="
+          echo "===== XRDP PROCESSES ====="
 
           ps aux | grep -E \
             'xrdp|xrdp-sesman' | grep -v grep || true
 
           echo
-          echo "===== Port 3389 ====="
+          echo "===== RDP PORT ====="
 
           sudo ss -lntp | grep ':3389' || true
 
@@ -319,6 +366,8 @@ jobs:
           echo "=========================================="
           echo "RDP Username: xrdpuser"
           echo "RDP Port: 3389"
+          echo "XRDP Session: Xorg"
+          echo "Desktop: LXQt"
           echo "=========================================="
 
 
@@ -329,28 +378,33 @@ jobs:
       - name: Keep runner alive
         run: |
 
-          echo "Remote desktop is ready."
+          echo "=========================================="
+          echo "LXQt Remote Desktop is ready."
+          echo "=========================================="
 
           while true; do
 
             echo
-            echo "===== Runner status ====="
+            echo "===== STATUS ====="
 
             date
 
             echo
             echo "Tailscale:"
+
             sudo tailscale \
               --socket=/run/tailscale/tailscaled.sock \
               status || true
 
             echo
             echo "XRDP:"
+
             ps aux | grep -E \
               'xrdp|xrdp-sesman' | grep -v grep || true
 
             echo
-            echo "RDP port:"
+            echo "Port 3389:"
+
             sudo ss -lntp | grep ':3389' || true
 
             sleep 60
