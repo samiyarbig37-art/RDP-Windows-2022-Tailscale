@@ -1,0 +1,119 @@
+name: Ubuntu 26.04 LXQt + XRDP + Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ubuntu-lxqt:
+    runs-on: namespace-profile-samiyarbig234
+
+    steps:
+      - name: Check Ubuntu version
+        run: |
+          lsb_release -a || cat /etc/os-release
+          uname -a
+
+      - name: Update system
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+
+      - name: Install LXQt + XRDP
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            lxqt \
+            lxqt-core \
+            xrdp \
+            xorgxrdp \
+            dbus-x11 \
+            curl \
+            ca-certificates \
+            gnupg
+
+      - name: Create RDP user
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+        run: |
+          if ! id xrdpuser >/dev/null 2>&1; then
+            sudo useradd -m -s /bin/bash xrdpuser
+          fi
+
+          echo "xrdpuser:${RDP_PASSWORD}" | sudo chpasswd
+
+          sudo usermod -aG sudo xrdpuser
+          sudo usermod -aG ssl-cert xrdpuser
+
+      - name: Configure LXQt for XRDP
+        run: |
+          sudo -u xrdpuser bash -c 'echo "startlxqt" > ~/.xsession'
+
+          sudo tee /etc/xrdp/startwm.sh > /dev/null <<'EOF'
+          #!/bin/sh
+
+          export LANG=C.UTF-8
+          export LANGUAGE=C.UTF-8
+          export LC_ALL=C.UTF-8
+
+          export XDG_CURRENT_DESKTOP=LXQt
+          export XDG_SESSION_DESKTOP=LXQt
+          export XDG_CONFIG_DIRS=/etc/xdg/xdg-LXQt:/etc/xdg
+          export XDG_DATA_DIRS=/usr/share/lxqt:/usr/local/share:/usr/share
+
+          exec startlxqt
+          EOF
+
+          sudo chmod +x /etc/xrdp/startwm.sh
+
+          sudo adduser xrdp ssl-cert || true
+
+          sudo systemctl enable xrdp
+          sudo systemctl restart xrdp
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Connect to Tailscale
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+        run: |
+          sudo tailscale up \
+            --auth-key="${TS_AUTHKEY}" \
+            --hostname="github-lxqt-${GITHUB_RUN_ID}"
+
+      - name: Display connection information
+        run: |
+          echo "======================================"
+          echo " Ubuntu 26.04 LXQt Desktop"
+          echo " XRDP + Tailscale"
+          echo "======================================"
+
+          echo
+          echo "Tailscale IPv4:"
+          tailscale ip -4
+
+          echo
+          echo "Tailscale status:"
+          tailscale status
+
+          echo
+          echo "XRDP:"
+          sudo systemctl status xrdp --no-pager || true
+
+          echo
+          echo "RDP port:"
+          sudo ss -lntp | grep ':3389' || true
+
+          echo
+          echo "RDP username:"
+          echo "xrdpuser"
+
+      - name: Keep runner alive
+        run: |
+          echo "LXQt + XRDP + Tailscale is ready."
+          echo "Connect using:"
+          echo "TAILSCALE_IP:3389"
+
+          while true; do
+            sleep 60
+          done
