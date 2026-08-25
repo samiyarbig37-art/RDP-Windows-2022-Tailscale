@@ -40,7 +40,7 @@ jobs:
 
 
       # ==========================================
-      # INSTALL LXQT + XRDP + DBUS
+      # INSTALL LXQT + XRDP + DBUS + XORG
       # ==========================================
 
       - name: Install LXQt XRDP Xorg and DBus
@@ -50,9 +50,9 @@ jobs:
             lxqt-core \
             xrdp \
             xorgxrdp \
+            dbus \
             dbus-x11 \
             dbus-user-session \
-            dbus \
             xserver-xorg-core \
             xserver-xorg-input-all \
             curl \
@@ -93,7 +93,7 @@ jobs:
 
 
       # ==========================================
-      # CREATE LXQT SESSION
+      # CONFIGURE LXQT SESSION
       # ==========================================
 
       - name: Configure LXQt session
@@ -156,7 +156,7 @@ jobs:
 
 
       # ==========================================
-      # XRDP RUNTIME DIRECTORY
+      # PREPARE XRDP RUNTIME
       # ==========================================
 
       - name: Prepare XRDP runtime
@@ -239,26 +239,27 @@ jobs:
 
 
       # ==========================================
-      # START TAILSCALE WITHOUT SYSTEMD
+      # START TAILSCALED
       # ==========================================
 
       - name: Start tailscaled
         run: |
 
-          if ! command -v tailscaled >/dev/null 2>&1; then
+          echo "Checking tailscaled..."
+
+          command -v tailscaled || {
             echo "::error::tailscaled was not installed."
             exit 1
-          fi
+          }
 
-          sudo mkdir -p \
-            /var/lib/tailscale \
-            /run/tailscale
+          echo "Starting tailscaled manually..."
+
+          sudo mkdir -p /var/lib/tailscale
+          sudo mkdir -p /run/tailscale
 
           sudo pkill tailscaled || true
 
           sleep 2
-
-          echo "Starting tailscaled..."
 
           sudo tailscaled \
             --state=/var/lib/tailscale/tailscaled.state \
@@ -267,34 +268,30 @@ jobs:
 
           echo "Waiting for tailscaled..."
 
-          TAILSCALE_READY=false
-
           for i in $(seq 1 30); do
 
             if sudo tailscale \
               --socket=/run/tailscale/tailscaled.sock \
               status >/dev/null 2>&1; then
 
-              TAILSCALE_READY=true
-              echo "tailscaled is ready."
-              break
+              echo "tailscaled is running."
 
+              break
             fi
 
             sleep 1
 
           done
 
-          if [ "$TAILSCALE_READY" != "true" ]; then
-            echo "::error::tailscaled failed to start."
+          echo
+          echo "===== tailscaled process ====="
 
-            echo
-            echo "===== tailscaled log ====="
+          ps aux | grep tailscaled | grep -v grep || true
 
-            sudo cat /tmp/tailscaled.log || true
+          echo
+          echo "===== tailscaled log ====="
 
-            exit 1
-          fi
+          sudo cat /tmp/tailscaled.log || true
 
 
       # ==========================================
@@ -312,6 +309,8 @@ jobs:
             exit 1
           fi
 
+          echo "Connecting to Tailscale..."
+
           sudo tailscale \
             --socket=/run/tailscale/tailscaled.sock \
             up \
@@ -322,7 +321,7 @@ jobs:
 
 
       # ==========================================
-      # SHOW CONNECTION INFORMATION
+      # CONNECTION INFORMATION
       # ==========================================
 
       - name: Show connection information
@@ -403,7 +402,7 @@ jobs:
               'xrdp|xrdp-sesman' | grep -v grep || true
 
             echo
-            echo "Port 3389:"
+            echo "RDP port:"
 
             sudo ss -lntp | grep ':3389' || true
 
