@@ -1,4 +1,4 @@
-name: HenMac Tahoe Full (NoMachine Edition)
+name: HenMac Tahoe Full (NoMachine Custom Link)
 
 on: workflow_dispatch
 
@@ -24,15 +24,21 @@ jobs:
       env:
         TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         
-    - name: Create User and Install NoMachine
+    - name: Create User, Download and Install NoMachine
       run: |
         # 1. ساخت کاربر جدید برای لاگین در NoMachine
         echo "Creating macOS user..."
         sudo sysadminctl -addUser macadmin -fullName "Mac Admin" -password "MacPass123!" -admin
         
-        # 2. نصب NoMachine با استفاده از Homebrew (حل قطعی ارور curl)
-        echo "Installing NoMachine via Homebrew..."
-        brew install --cask nomachine
+        # 2. دانلود NoMachine با لینک مستقیم شما (لینک را جایگزین کنید)
+        echo "Downloading NoMachine..."
+        curl -L -o nomachine.dmg "https://mac.filehorse.com/download/file/QyGrBHdAMbpdMhy-xguqM8hXkQ_ihvGdqlljeXekRIDcm3qJsdQg5qkXUzgeUIIoOqXr8rHEYULuseqLRj-cvcsfC31lyykzI_5RXt7ZkJA/"
+        
+        # 3. نصب NoMachine به صورت خودکار
+        echo "Mounting and installing NoMachine..."
+        hdiutil attach nomachine.dmg
+        sudo installer -pkg /Volumes/NoMachine/NoMachine.pkg -target /
+        hdiutil detach /Volumes/NoMachine -force || true
         
     - name: Grant TCC Permissions (Fix Black Screen for NoMachine)
       run: |
