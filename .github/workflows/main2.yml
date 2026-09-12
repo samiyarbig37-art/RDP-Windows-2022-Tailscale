@@ -38,8 +38,18 @@ jobs:
             os.write(fd, b"MacPass123!\n")
             time.sleep(0.5)'
         
-        # فعال‌سازی قابلیت ریموت دسکتاپ/Screen Sharing مک
+        # فعال‌سازی قابلیت ریموت دسکتاپ و دسترسی کامل
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -restart -agent -privs -all
+        
+        # فعال‌سازی حالت VNC Legacy برای پشتیبانی از نرم‌افزارهای VNC Viewer استاندارد
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes
+        
+        # تنظیم رمز عبور برای اتصال VNC
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvncpw -vncpw "MacPass123!"
+        
+        # راه‌اندازی مجدد سرویس برای اعمال تنظیمات جدید
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent
+
         
     - name: Get Tailscale IP and Access Info
       run: |
@@ -54,3 +64,4 @@ jobs:
     - name: Successfully made! Keeping the runner alive.
       run: |
         while true; do sleep 60; done
+        
