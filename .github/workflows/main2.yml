@@ -30,15 +30,23 @@ jobs:
         echo "Creating macOS user..."
         sudo sysadminctl -addUser macadmin -fullName "Mac Admin" -password "MacPass123!" -admin
         
-        # 2. دانلود NoMachine با لینک مستقیم شما (لینک را جایگزین کنید)
+        # 2. دانلود NoMachine با لینک مستقیم شما
         echo "Downloading NoMachine..."
-        curl -L -o nomachine.dmg "https://mac.filehorse.com/download/file/QyGrBHdAMbpdMhy-xguqM8hXkQ_ihvGdqlljeXekRIDcm3qJsdQg5qkXUzgeUIIoOqXr8rHEYULuseqLRj-cvcsfC31lyykzI_5RXt7ZkJA/"
+        curl -L -o nomachine.dmg "https://mac.filehorse.com/download/file/QyGrBHdAMbpdMhy-xguqM8hXkQ_ihvGdqlljeXekRIDcm3qJsdQg5qkXUzgeUIIoOqXr8rHEYULuseqLRj-cvcsfC31lyykzI_5RX"
         
-        # 3. نصب NoMachine به صورت خودکار
-        echo "Mounting and installing NoMachine..."
-        hdiutil attach nomachine.dmg
-        sudo installer -pkg /Volumes/NoMachine/NoMachine.pkg -target /
-        hdiutil detach /Volumes/NoMachine -force || true
+        # 3. باز کردن فایل و پیدا کردن خودکار نصب‌کننده
+        echo "Mounting and finding the installer..."
+        hdiutil attach nomachine.dmg -mountpoint /Volumes/NoMachine_Mount
+        
+        # جستجو برای پیدا کردن فایل pkg با هر نامی
+        PKG_FILE=$(find /Volumes/NoMachine_Mount -name "*.pkg" -maxdepth 1 | head -n 1)
+        echo "Found installer at: $PKG_FILE"
+        
+        # 4. نصب برنامه
+        sudo installer -pkg "$PKG_FILE" -target /
+        
+        # 5. جدا کردن درایو مجازی
+        hdiutil detach /Volumes/NoMachine_Mount -force || true
         
     - name: Grant TCC Permissions (Fix Black Screen for NoMachine)
       run: |
