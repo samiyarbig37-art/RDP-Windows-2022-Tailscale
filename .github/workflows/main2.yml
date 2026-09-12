@@ -1,10 +1,10 @@
-name: HenMac Tahoe Full (NoMachine Custom Link)
+name: HenMac Sequoia Full (NoMachine Custom Link)
 
 on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: macos-26-intel
+    runs-on: macos-15-intel
     timeout-minutes: 9999
 
     steps:
