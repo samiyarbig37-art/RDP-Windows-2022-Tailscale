@@ -70,21 +70,6 @@ jobs:
         
         # 4. بیدار نگه داشتن صفحه
         caffeinate -u -t 2 &
-
-        
-        # تزریق مجوزهای Screen Capture و Accessibility و PostEvent به VNC و Screen Sharing
-        for app in "com.apple.screensharing.agent" "com.apple.vncserver" "com.apple.RemoteDesktop.agent"; do
-          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceScreenCapture', '$app', 0, 2, 3, 1);" || true
-          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceAccessibility', '$app', 0, 2, 3, 1);" || true
-          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServicePostEvent', '$app', 0, 2, 3, 1);" || true
-        done
-        
-        # راه‌اندازی مجدد سرویس مجوزها و ریموت دسکتاپ
-        sudo killall tccd || true
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent
-        
-        # 4. بیدار نگه داشتن صفحه و ایجاد سشن گرافیکی (جلوگیری از رفتن سرور هدلس به حالت Sleep)
-        caffeinate -u -t 2 &
   
     - name: Get Tailscale IP and Access Info
       run: |
