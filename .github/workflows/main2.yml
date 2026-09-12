@@ -70,6 +70,7 @@ jobs:
         
         # 4. بیدار نگه داشتن صفحه
         caffeinate -u -t 2 &
+        
   
     - name: Get Tailscale IP and Access Info
       run: |
