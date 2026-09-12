@@ -16,6 +16,28 @@ jobs:
       run: |
         brew install tailscale
         
+    - name: Install AnyDesk & Virtual Audio (BlackHole)
+      run: |
+        # ۱. نصب BlackHole برای ایجاد کارت صدای مجازی (ضروری برای سرور هدلس)
+        brew install blackhole-2ch
+
+        # ۲. دانلود و نصب AnyDesk
+        curl -L -o AnyDesk.dmg "https://download.anydesk.com/anydesk.dmg"
+        hdiutil attach AnyDesk.dmg
+        sudo cp -R "/Volumes/AnyDesk/AnyDesk.app" /Applications/
+        hdiutil detach "/Volumes/AnyDesk"
+
+        # ۳. اعطای مجوزهای لازم به AnyDesk برای کنترل صفحه، موس و کیبورد
+        # Bundle ID: com.philandro.anydesk
+        sudo killall tccd || true
+        for app in "com.philandro.anydesk"; do
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceScreenCapture', '$app', 0, 2, 3, 1);" || true
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceAccessibility', '$app', 0, 2, 3, 1);" || true
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServicePostEvent', '$app', 0, 2, 3, 1);" || true
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceListenEvent', '$app', 0, 2, 3, 1);" || true
+        done
+        sudo killall tccd || true
+
     - name: Start and Authenticate Tailscale
       run: |
         sudo tailscaled > /dev/null 2>&1 &
@@ -24,9 +46,9 @@ jobs:
       env:
         TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         
-    - name: Enable Screen Sharing (Mac RDP/VNC)
+    - name: Enable Screen Sharing and Fix Black Screen
       run: |
-        # تغییر رمز عبور runner با ایجاد ترمینال مجازی (PTY)
+        # 1. تغییر رمز عبور runner
         sudo python3 -c 'import pty, os, time
         pid, fd = pty.fork()
         if pid == 0:
@@ -38,19 +60,29 @@ jobs:
             os.write(fd, b"MacPass123!\n")
             time.sleep(0.5)'
         
-        # فعال‌سازی قابلیت ریموت دسکتاپ و دسترسی کامل
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -restart -agent -privs -all
-        
-        # فعال‌سازی حالت VNC Legacy برای پشتیبانی از نرم‌افزارهای VNC Viewer استاندارد
+        # 2. فعال‌سازی ریموت دسکتاپ و تنظیمات VNC
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -restart -agent -privs -all -allowAccessFor -all
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes
-        
-        # تنظیم رمز عبور برای اتصال VNC
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvncpw -vncpw "MacPass123!"
         
-        # راه‌اندازی مجدد سرویس برای اعمال تنظیمات جدید
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent
-
+        # 3. --- حل مشکل صفحه سیاه (اعطای مجوزها به دیتابیس TCC) ---
+        # توقف سرویس کنترل مجوزها
+        sudo killall tccd || true
         
+        # تزریق مجوزهای Screen Capture و Accessibility و PostEvent به VNC و Screen Sharing
+        for app in "com.apple.screensharing.agent" "com.apple.vncserver" "com.apple.RemoteDesktop.agent"; do
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceScreenCapture', '$app', 0, 2, 3, 1);" || true
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceAccessibility', '$app', 0, 2, 3, 1);" || true
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServicePostEvent', '$app', 0, 2, 3, 1);" || true
+        done
+        
+        # راه‌اندازی مجدد سرویس مجوزها و ریموت دسکتاپ
+        sudo killall tccd || true
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent
+        
+        # 4. بیدار نگه داشتن صفحه و ایجاد سشن گرافیکی (جلوگیری از رفتن سرور هدلس به حالت Sleep)
+        caffeinate -u -t 2 &
+  
     - name: Get Tailscale IP and Access Info
       run: |
         tailscale_ip=$(sudo tailscale ip -4)
