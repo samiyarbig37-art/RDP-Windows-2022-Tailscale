@@ -33,7 +33,7 @@ jobs:
         # 2. دانلود NoMachine با لینک مستقیم شما
         echo "Downloading NoMachine..."
         curl -L -o nomachine.dmg "https://mac.filehorse.com/download/file/JtxYAb8attfSbIIqhuaeQ2O-VWkHCAjA5sKXLeRQLXYaCbAgft4OcrcfTdCYWmAqdJWI3CaEG5VZ1xdwk-UcmgVSNbfQXc8iYrwAp59J2B4/"
-        "
+        
         
         # 3. باز کردن فایل و پیدا کردن خودکار نصب‌کننده
         echo "Mounting and finding the installer..."
