@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: macos-26-intel
+    runs-on: macos-13
     timeout-minutes: 9999
 
     steps:
@@ -24,23 +24,15 @@ jobs:
       env:
         TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         
-    - name: Create User, Download and Install NoMachine
+    - name: Create User and Install NoMachine
       run: |
         # 1. ساخت کاربر جدید برای لاگین در NoMachine
         echo "Creating macOS user..."
         sudo sysadminctl -addUser macadmin -fullName "Mac Admin" -password "MacPass123!" -admin
         
-        # 2. پیدا کردن لینک آخرین نسخه مک و دانلود با curl
-        echo "Fetching latest NoMachine download URL..."
-        NOMACHINE_URL=$(curl -s https://www.nomachine.com/download/download-and-install-mac | grep -o 'https://download.nomachine.com/download/[^"]*.dmg' | head -n 1)
-        echo "Downloading NoMachine from: $NOMACHINE_URL"
-        curl -L -o nomachine.dmg "$NOMACHINE_URL"
-        
-        # 3. نصب NoMachine
-        echo "Installing NoMachine..."
-        hdiutil attach nomachine.dmg
-        sudo installer -pkg /Volumes/NoMachine/NoMachine.pkg -target /
-        hdiutil detach /Volumes/NoMachine -force || true
+        # 2. نصب NoMachine با استفاده از Homebrew (حل قطعی ارور curl)
+        echo "Installing NoMachine via Homebrew..."
+        brew install --cask nomachine
         
     - name: Grant TCC Permissions (Fix Black Screen for NoMachine)
       run: |
