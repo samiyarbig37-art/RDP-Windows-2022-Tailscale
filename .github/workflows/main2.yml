@@ -1,4 +1,4 @@
-name: HenMac Tahoe Full
+Name: HenMac Tahoe Full (NoMachine Edition)
 
 on: workflow_dispatch
 
@@ -16,28 +16,6 @@ jobs:
       run: |
         brew install tailscale
         
-    - name: Install AnyDesk & Virtual Audio (BlackHole)
-      run: |
-        # ۱. نصب BlackHole برای ایجاد کارت صدای مجازی (ضروری برای سرور هدلس)
-        brew install blackhole-2ch
-
-        # ۲. دانلود و نصب AnyDesk
-        curl -L -o AnyDesk.dmg "https://download.anydesk.com/anydesk.dmg"
-        hdiutil attach AnyDesk.dmg
-        sudo cp -R "/Volumes/AnyDesk/AnyDesk.app" /Applications/
-        hdiutil detach "/Volumes/AnyDesk"
-
-        # ۳. اعطای مجوزهای لازم به AnyDesk برای کنترل صفحه، موس و کیبورد
-        # Bundle ID: com.philandro.anydesk
-        sudo killall tccd || true
-        for app in "com.philandro.anydesk"; do
-          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceScreenCapture', '$app', 0, 2, 3, 1);" || true
-          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceAccessibility', '$app', 0, 2, 3, 1);" || true
-          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServicePostEvent', '$app', 0, 2, 3, 1);" || true
-          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceListenEvent', '$app', 0, 2, 3, 1);" || true
-        done
-        sudo killall tccd || true
-
     - name: Start and Authenticate Tailscale
       run: |
         sudo tailscaled > /dev/null 2>&1 &
@@ -46,41 +24,55 @@ jobs:
       env:
         TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
         
-    - name: Create VNC User, Enable Screen Sharing and Fix Black Screen
+    - name: Create User, Download and Install NoMachine
       run: |
-        # 1. ساخت کاربر جدید و اختصاصی برای لاگین گرافیکی
-        # نام کاربری: vncuser
-        # رمز عبور: MacPass123!
-        sudo sysadminctl -addUser vncuser -fullName "VNC Admin" -password "MacPass123!" -admin
+        # 1. ساخت کاربر جدید برای لاگین در NoMachine
+        echo "Creating macOS user..."
+        sudo sysadminctl -addUser macadmin -fullName "Mac Admin" -password "MacPass123!" -admin
         
-        # 2. فعال‌سازی ریموت دسکتاپ و تنظیمات VNC
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -restart -agent -privs -all -allowAccessFor -all
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvncpw -vncpw "MacPass123!"
+        # 2. پیدا کردن لینک آخرین نسخه مک و دانلود با curl
+        echo "Fetching latest NoMachine download URL..."
+        NOMACHINE_URL=$(curl -s https://www.nomachine.com/download/download-and-install-mac | grep -o 'https://download.nomachine.com/download/[^"]*.dmg' | head -n 1)
+        echo "Downloading NoMachine from: $NOMACHINE_URL"
+        curl -L -o nomachine.dmg "$NOMACHINE_URL"
         
-        # 3. حل مشکل صفحه سیاه (اعطای مجوزها به دیتابیس TCC)
+        # 3. نصب NoMachine
+        echo "Installing NoMachine..."
+        hdiutil attach nomachine.dmg
+        sudo installer -pkg /Volumes/NoMachine/NoMachine.pkg -target /
+        hdiutil detach /Volumes/NoMachine -force || true
+        
+    - name: Grant TCC Permissions (Fix Black Screen for NoMachine)
+      run: |
+        echo "Granting Screen Recording and Accessibility permissions to NoMachine..."
         sudo killall tccd || true
-        for app in "com.apple.screensharing.agent" "com.apple.vncserver" "com.apple.RemoteDesktop.agent"; do
+        
+        # شناسه برنامه‌های هسته‌ی NoMachine که به مجوز نیاز دارند
+        for app in "com.nomachine.nxdock" "com.nomachine.nxplayer" "com.nomachine.nxserver" "com.nomachine.nxnode"; do
           sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceScreenCapture', '$app', 0, 2, 3, 1);" || true
           sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServiceAccessibility', '$app', 0, 2, 3, 1);" || true
           sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) VALUES ('kTCCServicePostEvent', '$app', 0, 2, 3, 1);" || true
         done
-        sudo killall tccd || true
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent
         
-        # 4. بیدار نگه داشتن صفحه
+        sudo killall tccd || true
+        
+        # راه‌اندازی مجدد سرور NoMachine برای اعمال دسترسی‌ها
+        sudo /etc/NX/nxserver --restart
+        
+        # بیدار نگه داشتن صفحه و ایجاد سشن گرافیکی
         caffeinate -u -t 2 &
         
-  
     - name: Get Tailscale IP and Access Info
       run: |
         tailscale_ip=$(sudo tailscale ip -4)
-        echo "=================================="
+        echo "========================================================"
+        echo "🚀 Mac Server is Ready! Connect using NoMachine client."
+        echo "========================================================"
         echo "Tailscale IP: $tailscale_ip"
-        echo "Username: runner"
-        echo "Password: MacPass123!"
-        echo "Protocol: VNC (Use a VNC Viewer or Apple Screen Sharing)"
-        echo "=================================="
+        echo "Username:     macadmin"
+        echo "Password:     MacPass123!"
+        echo "Port:         4000 (Default NX Protocol)"
+        echo "========================================================"
         
     - name: Successfully made! Keeping the runner alive.
       run: |
