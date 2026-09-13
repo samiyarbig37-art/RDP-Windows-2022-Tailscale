@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: namespace-profile-samiyarbig
+    runs-on: namespace-profile-samiyarbig1
     timeout-minutes: 9999
 
     steps:
