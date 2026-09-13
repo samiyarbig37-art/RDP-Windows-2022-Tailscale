@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: macos-15-intel
+    runs-on: namespace-profile-samiyarbig
     timeout-minutes: 9999
 
     steps:
